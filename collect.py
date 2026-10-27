@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Copy finished Polytrack laps from the public drop into this repo.
 
-Players upload the lap and post its URL. This keeps the OK laps.
+Players upload the run and post its URL. This keeps the good data.
 Run it from the repo root. TOPIC is the drop name, matching the game.
 """
 
