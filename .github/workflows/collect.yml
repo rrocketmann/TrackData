@@ -1,0 +1,35 @@
+name: Collect laps
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-laps-063
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy new laps into the repo
+        env:
+          TOPIC: pt360bad3248e4c33725e03b483f99b673448747fd
+          GH_TOKEN: ${{ github.token }}
+        run: python3 collect.py
+      - name: Commit laps
+        run: |
+          git config user.name "rrocketmann"
+          git config user.email "martinmalyshau@gmail.com"
+          git add laps inbox
+          if git diff --cached --quiet; then
+            echo "no new laps"
+            exit 0
+          fi
+          git commit -m "Add finished laps."
+          git push
