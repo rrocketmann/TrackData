@@ -301,6 +301,28 @@ def release_has(name):
     return False
 
 
+def store_video_file(name, page_url, ext, slug):
+    rel = "videos/" + name
+    if os.path.isfile(rel) and os.path.getsize(rel) > 0:
+        return rel
+    data = download_named(page_url, MAX_DOWNLOAD)
+    if data is None:
+        raise Temporary()
+    if not data:
+        print("video missing", slug)
+        return None
+    if ext == "webm" and not data.startswith(b"\x1a\x45\xdf\xa3"):
+        print("video skipped", slug)
+        return None
+    if ext == "mp4" and not (len(data) > 8 and data[4:8] == b"ftyp"):
+        print("video skipped", slug)
+        return None
+    os.makedirs("videos", exist_ok=True)
+    with open(rel, "wb") as handle:
+        handle.write(data)
+    return rel
+
+
 def ensure_release():
     proc = subprocess.run(["gh", "release", "view", "inbox"], capture_output=True, text=True)
     if proc.returncode == 0:
@@ -318,6 +340,8 @@ def ensure_release():
 def store_video(slug, page_url):
     ext = "mp4" if page_url.endswith(".mp4") else "webm"
     name = slug + "." + ext
+    if os.environ.get("VIDEO_STORE") == "git":
+        return store_video_file(name, page_url, ext, slug)
     if release_has(name):
         return name
     data = download_named(page_url, MAX_DOWNLOAD)

@@ -2,7 +2,9 @@ name: Collect laps
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    # Backup only. schoolagy collects both archives every ten minutes.
+    # 07:47 UTC stays off the top of the hour, where scheduled runs get dropped.
+    - cron: "47 7 * * *"
   workflow_dispatch:
 
 permissions:
@@ -32,4 +34,5 @@ jobs:
             exit 0
           fi
           git commit -m "Add finished laps."
+          git pull --rebase origin main
           git push
