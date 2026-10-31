@@ -270,8 +270,61 @@ def load_index():
     return rows
 
 
+# Campaign order. A custom track keeps its own name and sorts after these.
+CAMPAIGN = [
+    "Summer 1", "Summer 2", "Summer 3", "Summer 4", "Summer 5", "Summer 6", "Summer 7",
+    "Winter 1", "Winter 2", "Winter 3", "Winter 4", "Winter 5",
+    "Desert 1", "Desert 2", "Desert 3", "Desert 4", "Desert 5",
+]
+CAMPAIGN_ORDER = {name: index for index, name in enumerate(CAMPAIGN)}
+
+# sha256 prefix of the sorted (x, y, z, type, rotation, axis) tuples.
+# Taken from the Polytrack 0.6.3 official .track files.
+OFFICIAL = {
+    "8f94794c132dcd1b": "Summer 1",
+    "eba5b2814a0b60e6": "Summer 2",
+    "08d3a76150bf2493": "Summer 3",
+    "598d2f153b1dfcb9": "Summer 4",
+    "b451518d1b0dc8e0": "Summer 5",
+    "11b898afd000c9f4": "Summer 6",
+    "0830c1efcb61821e": "Summer 7",
+    "bc39a89124e18f0b": "Winter 1",
+    "5d3bdb8249d2fcbe": "Winter 2",
+    "c431c56ee8fd7ded": "Winter 3",
+    "aa851494e5d3d404": "Winter 4",
+    "387b28e30c2a2566": "Winter 5",
+    "d824a995ca386b1e": "Desert 1",
+    "84a542770fc9271d": "Desert 2",
+    "23f882dd20816a97": "Desert 3",
+    "cf41a955af1ef0c1": "Desert 4",
+    "9c53502b022070bd": "Desert 5",
+}
+
+
+def layout_sig(parts):
+    if not isinstance(parts, list) or not parts:
+        return None
+    rows = []
+    for part in parts:
+        if not isinstance(part, dict):
+            return None
+        try:
+            rows.append((
+                int(part["x"]), int(part["y"]), int(part["z"]),
+                int(part["type"]), int(part["rotation"]), int(part["axis"]),
+            ))
+        except (KeyError, TypeError, ValueError):
+            return None
+    rows.sort()
+    return hashlib.sha256(repr(rows).encode()).hexdigest()[:16]
+
+
+def official_name(parts):
+    return OFFICIAL.get(layout_sig(parts) or "")
+
+
 def level_key(name):
-    # "Summer 2" stays before "Summer 10". The stored name is the track id.
+    # "Summer 2" stays before "Summer 10" when the name is not a campaign level.
     parts = re.findall(r"\d+|\D+", name or "")
     key = []
     for part in parts:
@@ -286,7 +339,12 @@ def index_sort_key(row):
     seconds = row.get("seconds")
     if not is_num(seconds):
         seconds = float("inf")
-    return (level_key(row.get("track") if isinstance(row.get("track"), str) else ""), seconds, row.get("id") or "")
+    name = row.get("track") if isinstance(row.get("track"), str) else ""
+    if name in CAMPAIGN_ORDER:
+        level = (0, CAMPAIGN_ORDER[name])
+    else:
+        level = (1, level_key(name))
+    return (level, seconds, row.get("id") or "")
 
 
 def write_index(rows):
@@ -306,8 +364,10 @@ def index_has(run_id):
 
 def append_index(run, slug, video_name, size):
     track = run.get("track") if isinstance(run.get("track"), dict) else {}
-    name = track.get("name") if isinstance(track.get("name"), str) else ""
-    name = name.replace("\n", " ").replace("\r", " ")[:80]
+    name = official_name(track.get("parts"))
+    if not name:
+        name = track.get("name") if isinstance(track.get("name"), str) else ""
+        name = name.replace("\n", " ").replace("\r", " ")[:80]
     row = {
         "id": run["id"],
         "file": "laps/" + slug + ".json.gz",
@@ -546,12 +606,20 @@ def self_test():
         b"pipeline-test|500|10|0|0|0|0"
     ).hexdigest()[:16]
     assert level_key("Summer 2") < level_key("Summer 10")
-    assert index_sort_key({"track": "4759:winter", "seconds": 19.0, "id": "a"}) > index_sort_key(
-        {"track": "1690:summer", "seconds": 40.0, "id": "b"}
+    assert index_sort_key({"track": "Winter 5", "seconds": 19.0, "id": "a"}) > index_sort_key(
+        {"track": "Summer 1", "seconds": 40.0, "id": "b"}
     )
-    assert index_sort_key({"track": "1690:summer", "seconds": 20.0, "id": "a"}) < index_sort_key(
-        {"track": "1690:summer", "seconds": 25.0, "id": "b"}
+    assert index_sort_key({"track": "Summer 1", "seconds": 20.0, "id": "a"}) < index_sort_key(
+        {"track": "Summer 1", "seconds": 25.0, "id": "b"}
     )
+    assert index_sort_key({"track": "Desert 1", "seconds": 1.0, "id": "a"}) > index_sort_key(
+        {"track": "Winter 5", "seconds": 90.0, "id": "b"}
+    )
+    one = [{"x": 1, "y": 2, "z": 3, "type": 0, "rotation": 1, "axis": 0}]
+    assert layout_sig(one) == hashlib.sha256(repr([(1, 2, 3, 0, 1, 0)]).encode()).hexdigest()[:16]
+    assert official_name(one) is None
+    assert OFFICIAL["8f94794c132dcd1b"] == "Summer 1"
+    assert OFFICIAL["387b28e30c2a2566"] == "Winter 5"
     print("self-test ok")
 
 
