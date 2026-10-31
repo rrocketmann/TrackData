@@ -254,13 +254,51 @@ def append_line(path, line):
         handle.write(line + "\n")
 
 
-def index_has(run_id):
-    path = os.path.join("laps", "index.jsonl")
-    for line in load_lines(path):
+def index_path():
+    return os.path.join("laps", "index.jsonl")
+
+
+def load_index():
+    rows = []
+    for line in load_lines(index_path()):
         try:
             row = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def level_key(name):
+    # "Summer 2" stays before "Summer 10". The stored name is the track id.
+    parts = re.findall(r"\d+|\D+", name or "")
+    key = []
+    for part in parts:
+        if part.isdigit():
+            key.append((0, int(part)))
+        else:
+            key.append((1, part.casefold()))
+    return tuple(key)
+
+
+def index_sort_key(row):
+    seconds = row.get("seconds")
+    if not is_num(seconds):
+        seconds = float("inf")
+    return (level_key(row.get("track") if isinstance(row.get("track"), str) else ""), seconds, row.get("id") or "")
+
+
+def write_index(rows):
+    rows = sorted(rows, key=index_sort_key)
+    os.makedirs("laps", exist_ok=True)
+    text = "".join(json.dumps(row, separators=(",", ":")) + "\n" for row in rows)
+    with open(index_path(), "w", encoding="utf-8") as handle:
+        handle.write(text)
+
+
+def index_has(run_id):
+    for row in load_index():
         if row.get("id") == run_id:
             return True
     return False
@@ -281,7 +319,9 @@ def append_index(run, slug, video_name, size):
         "bytes": size,
         "at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
-    append_line(os.path.join("laps", "index.jsonl"), json.dumps(row, separators=(",", ":")))
+    rows = [old for old in load_index() if old.get("id") != run["id"]]
+    rows.append(row)
+    write_index(rows)
 
 
 def release_has(name):
@@ -505,6 +545,13 @@ def self_test():
     assert slug_for("pipeline-test|500|10|0|0|0|0") == hashlib.sha256(
         b"pipeline-test|500|10|0|0|0|0"
     ).hexdigest()[:16]
+    assert level_key("Summer 2") < level_key("Summer 10")
+    assert index_sort_key({"track": "4759:winter", "seconds": 19.0, "id": "a"}) > index_sort_key(
+        {"track": "1690:summer", "seconds": 40.0, "id": "b"}
+    )
+    assert index_sort_key({"track": "1690:summer", "seconds": 20.0, "id": "a"}) < index_sort_key(
+        {"track": "1690:summer", "seconds": 25.0, "id": "b"}
+    )
     print("self-test ok")
 
 
