@@ -323,28 +323,6 @@ def official_name(parts):
     return OFFICIAL.get(layout_sig(parts) or "")
 
 
-def track_times(name):
-    times = []
-    for row in load_index():
-        if row.get("track") == name and is_num(row.get("seconds")):
-            times.append(float(row["seconds"]))
-    return times
-
-
-def half_cut(times):
-    # Slower edge of the faster half. Fewer than four laps is not a split yet.
-    if len(times) < 4:
-        return None
-    ordered = sorted(times)
-    return ordered[(len(ordered) - 1) // 2]
-
-
-def fast_enough(seconds, times):
-    # One second past the slower edge of the faster half.
-    cut = half_cut(times)
-    return cut is None or seconds <= cut + 1
-
-
 def level_key(name):
     # "Summer 2" stays before "Summer 10" when the name is not a campaign level.
     parts = re.findall(r"\d+|\D+", name or "")
@@ -510,13 +488,9 @@ def ingest(notice):
         return "invalid", None
     if not validate_run(run) or run["id"] != notice["id"]:
         return "invalid", None
-    track_name = official_name((run.get("track") or {}).get("parts"))
-    if not track_name:
+    if not official_name((run.get("track") or {}).get("parts")):
         print("custom", run["id"][:80])
         return "custom", None
-    if not fast_enough(float(run["seconds"]), track_times(track_name)):
-        print("slow", run["id"][:80])
-        return "slow", None
     slug = slug_for(run["id"])
     path = os.path.join("laps", slug + ".json.gz")
     new = not os.path.exists(path)
@@ -642,11 +616,6 @@ def self_test():
     assert layout_sig(one) == hashlib.sha256(repr([(1, 2, 3, 0, 1, 0)]).encode()).hexdigest()[:16]
     assert official_name(one) is None
     assert official_name(good["track"]["parts"]) is None
-    assert half_cut([1, 2, 3]) is None
-    assert half_cut([1, 2, 3, 4]) == 2
-    assert fast_enough(3, [1, 2, 3, 4])
-    assert not fast_enough(3.1, [1, 2, 3, 4])
-    assert fast_enough(9, [1, 2, 3])
     assert OFFICIAL["8f94794c132dcd1b"] == "Summer 1"
     assert OFFICIAL["387b28e30c2a2566"] == "Winter 5"
     print("self-test ok")
