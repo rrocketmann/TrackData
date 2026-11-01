@@ -270,7 +270,7 @@ def load_index():
     return rows
 
 
-# Campaign order. A custom track keeps its own name and sorts after these.
+# Campaign order. A lap on any other layout is not stored.
 CAMPAIGN = [
     "Summer 1", "Summer 2", "Summer 3", "Summer 4", "Summer 5", "Summer 6", "Summer 7",
     "Winter 1", "Winter 2", "Winter 3", "Winter 4", "Winter 5",
@@ -340,10 +340,7 @@ def index_sort_key(row):
     if not is_num(seconds):
         seconds = float("inf")
     name = row.get("track") if isinstance(row.get("track"), str) else ""
-    if name in CAMPAIGN_ORDER:
-        level = (0, CAMPAIGN_ORDER[name])
-    else:
-        level = (1, level_key(name))
+    level = (0, CAMPAIGN_ORDER[name]) if name in CAMPAIGN_ORDER else (1, level_key(name))
     return (level, seconds, row.get("id") or "")
 
 
@@ -364,10 +361,7 @@ def index_has(run_id):
 
 def append_index(run, slug, video_name, size):
     track = run.get("track") if isinstance(run.get("track"), dict) else {}
-    name = official_name(track.get("parts"))
-    if not name:
-        name = track.get("name") if isinstance(track.get("name"), str) else ""
-        name = name.replace("\n", " ").replace("\r", " ")[:80]
+    name = official_name(track.get("parts")) or ""
     row = {
         "id": run["id"],
         "file": "laps/" + slug + ".json.gz",
@@ -494,6 +488,9 @@ def ingest(notice):
         return "invalid", None
     if not validate_run(run) or run["id"] != notice["id"]:
         return "invalid", None
+    if not official_name((run.get("track") or {}).get("parts")):
+        print("custom", run["id"][:80])
+        return "custom", None
     slug = slug_for(run["id"])
     path = os.path.join("laps", slug + ".json.gz")
     new = not os.path.exists(path)
@@ -618,6 +615,7 @@ def self_test():
     one = [{"x": 1, "y": 2, "z": 3, "type": 0, "rotation": 1, "axis": 0}]
     assert layout_sig(one) == hashlib.sha256(repr([(1, 2, 3, 0, 1, 0)]).encode()).hexdigest()[:16]
     assert official_name(one) is None
+    assert official_name(good["track"]["parts"]) is None
     assert OFFICIAL["8f94794c132dcd1b"] == "Summer 1"
     assert OFFICIAL["387b28e30c2a2566"] == "Winter 5"
     print("self-test ok")
