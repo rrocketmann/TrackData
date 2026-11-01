@@ -1,6 +1,6 @@
 # Polytrack 0.6.3 laps
 
-Good data from Polytrack 0.6.3 on schoolagy. A run is stored only when that browser's determinism check passed. Profile names are not included. Polytrack 0.5.2 good data goes to a separate archive and is rejected here.
+Good data from Polytrack 0.6.3 on schoolagy. A run is stored only when that browser's determinism check passed. Profile names are not included. A Polytrack 0.5.2 lap is rejected here.
 
 `laps/<id>.json.gz` is one lap, the same object the game puts in its zip. `laps/index.jsonl` lists them by campaign level (Summer 1, then Winter 5, and so on), fastest first within a level. A custom track keeps its own name and is listed after the campaign. The automatic collect writes a canvas video to `videos/<id>.webm` or `videos/<id>.mp4`. A collect started in this repo uploads that video to the `inbox` release instead.
 
