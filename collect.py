@@ -340,8 +340,9 @@ def half_cut(times):
 
 
 def fast_enough(seconds, times):
+    # One second past the slower edge of the faster half.
     cut = half_cut(times)
-    return cut is None or seconds <= cut
+    return cut is None or seconds <= cut + 1
 
 
 def level_key(name):
@@ -643,8 +644,8 @@ def self_test():
     assert official_name(good["track"]["parts"]) is None
     assert half_cut([1, 2, 3]) is None
     assert half_cut([1, 2, 3, 4]) == 2
-    assert fast_enough(2, [1, 2, 3, 4])
-    assert not fast_enough(2.1, [1, 2, 3, 4])
+    assert fast_enough(3, [1, 2, 3, 4])
+    assert not fast_enough(3.1, [1, 2, 3, 4])
     assert fast_enough(9, [1, 2, 3])
     assert OFFICIAL["8f94794c132dcd1b"] == "Summer 1"
     assert OFFICIAL["387b28e30c2a2566"] == "Winter 5"
