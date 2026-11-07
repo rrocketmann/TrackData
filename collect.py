@@ -373,7 +373,15 @@ def append_index(run, slug, video_name, size):
         "bytes": size,
         "at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
-    rows = [old for old in load_index() if old.get("id") != run["id"]]
+    rows = []
+    for old in load_index():
+        if old.get("id") != run["id"]:
+            rows.append(old)
+            continue
+        # Keep a tag such as "reset" when the same lap is stored again.
+        for key, value in old.items():
+            if key not in row:
+                row[key] = value
     rows.append(row)
     write_index(rows)
 
