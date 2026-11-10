@@ -94,6 +94,36 @@ def validate_run(run):
     return True
 
 
+def held_reset(run):
+    # control_bits bit 16 is the reset control. A few milliseconds is enough.
+    for tick in run.get("ticks") or []:
+        if isinstance(tick, list) and len(tick) > 3 and is_int(tick[3]) and tick[3] & 16:
+            return True
+    for row in run.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get("action") == -1:
+            return True
+        car = row.get("car")
+        controls = car.get("controls") if isinstance(car, dict) else None
+        if isinstance(controls, dict) and controls.get("reset") is True:
+            return True
+    return False
+
+
+def drop_stored(run_id, slug):
+    lap = os.path.join("laps", slug + ".json.gz")
+    if os.path.isfile(lap):
+        os.remove(lap)
+    for ext in ("webm", "mp4"):
+        video = os.path.join("videos", slug + "." + ext)
+        if os.path.isfile(video):
+            os.remove(video)
+    rows = [row for row in load_index() if row.get("id") != run_id]
+    if len(rows) != len(load_index()):
+        write_index(rows)
+
+
 def sample_run():
     rows = []
     ticks = []
@@ -378,9 +408,8 @@ def append_index(run, slug, video_name, size):
         if old.get("id") != run["id"]:
             rows.append(old)
             continue
-        # Keep a tag such as "reset" when the same lap is stored again.
         for key, value in old.items():
-            if key not in row:
+            if key not in row and key != "reset":
                 row[key] = value
     rows.append(row)
     write_index(rows)
@@ -500,6 +529,10 @@ def ingest(notice):
         print("custom", run["id"][:80])
         return "custom", None
     slug = slug_for(run["id"])
+    if held_reset(run):
+        print("reset", run["id"][:80])
+        drop_stored(run["id"], slug)
+        return "reset", None
     path = os.path.join("laps", slug + ".json.gz")
     new = not os.path.exists(path)
     if new:
@@ -626,6 +659,13 @@ def self_test():
     assert official_name(good["track"]["parts"]) is None
     assert OFFICIAL["8f94794c132dcd1b"] == "Summer 1"
     assert OFFICIAL["387b28e30c2a2566"] == "Winter 5"
+    assert not held_reset(good)
+    tapped = sample_run()
+    tapped["ticks"][3][3] = 16
+    assert held_reset(tapped)
+    tapped = sample_run()
+    tapped["rows"][2]["action"] = -1
+    assert held_reset(tapped)
     print("self-test ok")
 
 
